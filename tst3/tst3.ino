@@ -1,8 +1,12 @@
-/* ****************************
-W tym szkicu działa enkoder koła lewego i to całkiem spoko
-realizuje pełne obroty przy tej konfiguracji
-Coś nie tak ze sterowaniem prawego PWM jest cały czas załączony
-******************************/
+/* **********************************
+Realizacja wykorzystania enkoderów
+do sterowania obrotem kół robota Bug
+Wykonywanie pełnego obrotu obu kół
+Wyraźne opóźnienie jednego z kół
+
+by: Michał Kłos @
+https://github.com/michaail
+*************************************/
 
 #define ARM_MATH_CM4
 
@@ -52,9 +56,11 @@ const int maxValue = bit(8)-1;
 // flaga jazdy na wprost
 bool straightF = 0;
 
+// flagi etapow
 bool f1 = false;
 bool f2 = false;
 
+// chwile czasu
 unsigned long t1 = 0;
 unsigned long t2 = 0;
 
