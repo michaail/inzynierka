@@ -2,5 +2,6 @@
     "board": "adafruit:nrf52:feather52",
     "configuration": "debug=l0",
     "port": "COM15",
-    "sketch": "tst3\\tst3.ino"
+    "sketch": "bletst1\\bletst1.ino",
+    "output": "../build"
 }
