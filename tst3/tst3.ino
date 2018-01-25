@@ -96,7 +96,7 @@ void setup()
 
 
     HwPWMx[0]->writePin(PWM1, maxValue, false);
-    HwPWMx[0]->writePin(PWM2, maxValue, false);
+    HwPWMx[0]->writePin(PWM2, 190, false);
     straightF = 1;
 
     //digitalWrite(PWM2, LOW);

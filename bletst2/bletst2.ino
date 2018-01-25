@@ -303,6 +303,17 @@ void CancelControl() // set zero to all motors
 
 void ManualControl(uint8_t val)
 {
+
+    digitalWrite(dirLeftA, dir);
+    digitalWrite(dirLeftB, !dir);
+
+    digitalWrite(dirRightA, dir);
+    digitalWrite(dirRightB, !dir);
+
+    HwPWMx[0]->writePin(enableLeft, val, false);
+    HwPWMx[1]->writePin(enableRight, maxValue, false);
+
+    /*
     if(val == 0x57 || val == 0x77) // 'W/w' FORWARD
     {
         GoStraight(true);
@@ -339,7 +350,7 @@ void ManualControl(uint8_t val)
         Serial.println(val, HEX);
         // what if something else
     }
-
+*/
 }
 
 void GetControl(byte msg[])
@@ -381,7 +392,7 @@ void loop()
     }
 */
     // Forward from BLEUART to HW 
-    /*
+    
     while ( bleuart.available() ) // tu nie może być while
     {
         if(bleuart.available()<2)
@@ -399,6 +410,7 @@ void loop()
         }
         
     }
+    /*
 // odczyt enkoderów //////////////////////////////////////////////////////////
     bool encLeft = digitalizeAnalog( analogRead(encoderLeft) );
     int encRight = digitalizeAnalog( analogRead(encoderRight) );
