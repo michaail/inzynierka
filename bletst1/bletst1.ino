@@ -58,8 +58,8 @@
 #define encoderResolution 32
 
 // encoder ticks
-byte encoderLeftTicks = 0;
-byte encoderRightTicks = 0;
+int encoderLeftTicks = 0;
+int encoderRightTicks = 0;
 
 // number of wheel revs
 int encoderLeftRevs = 0;
@@ -69,10 +69,18 @@ int encoderRightRevs = 0;
 bool encoderLeftLast = 0;
 bool encoderRightLast = 0;
 
+bool encoderLeftCurr = 0;
+bool encoderRightCurr = 0;
+
 // ref voltage for ADC
 //float mv_per_lsb = 3000.0f/256.0f; // 8-bit ADC z 3.3V input range
 
 const uint8_t maxValue = bit(8)-1;
+const uint8_t maxLeftValue = 192;
+int ctr = 0;
+
+uint8_t leftWheelControl = maxValue;
+uint8_t rightWheelControl = maxValue;
 
 // straight ride flag
 bool straightF = 0;
@@ -98,6 +106,8 @@ uint32_t InputVal[2];
 float OutputVal[4];
 float sum;
 
+unsigned long t3;
+
 uint8_t inputLayer;
 uint8_t hiddenLayer;
 uint8_t outputLayer;
@@ -112,12 +122,29 @@ float outputNeuron[4];
 uint8_t omegaLeft[1];
 uint8_t omegaRight = 0;
 
-bool leftWheelDirection;
-bool rightWheelDirection;
+bool leftWheelDirection = true;
+bool rightWheelDirection = true;
 
+unsigned long encTimer;
+
+float speedLeft;
+float speedRight;
+
+int encCurrLeftCount; 
+int encCurrRightCount;
+
+float R = 0.01525; // promien kola
+float Pi = 3.1415; // pi
+
+float d = 0.0515; // rozstaw kol
+
+bool Fr = true;
 
 // Software Timer for blinking RED LED
 SoftwareTimer blinkTimer;
+
+SoftwareTimer readEncTimer;
+
 
 void setupPWM()
 {
@@ -151,10 +178,13 @@ void setup()
     pinMode(dirRightB, OUTPUT);
 
     F0 = true;
-    t0 = millis() - 200;
+    t0 = millis() - 50;
+    t3 = millis() -200;
     
     encoderLeftLast = 0;
     encoderRightLast = 0;
+    encoderLeftCurr = 0;
+    encoderRightCurr = 0;
 
     Serial.begin(115200);
     Serial.println("BugBoard Manual Control example");
@@ -164,6 +194,10 @@ void setup()
     // Initialize blinkTimer for 1000 ms and start it
     blinkTimer.begin(1000, blink_timer_callback);
     blinkTimer.start();
+/*
+    readEncTimer.begin(50, readEnc_Timer_callback);
+    readEncTimer.start();
+*/
 
     // Setup the BLE LED to be enabled on CONNECT
     Bluefruit.autoConnLed(true); // to zostawiamy
@@ -192,6 +226,8 @@ void setup()
     startAdv();
 
     setupNeuralNet();
+
+    //GoStraight(true, 192, 255);
 
     Serial.println("Please use BugApp to control BugBoard via BLE");
     Serial.println("You can send values to the app to test connectivity");
@@ -228,11 +264,11 @@ void startAdv(void)
 
 void GoStraight(bool dir) // 1 - forward; 0 - backward
 {
-    digitalWrite(dirLeftA, dir);
-    digitalWrite(dirLeftB, !dir);
+    digitalWrite(dirLeftA, !dir);
+    digitalWrite(dirLeftB, dir);
 
-    digitalWrite(dirRightA, dir);
-    digitalWrite(dirRightB, !dir);
+    digitalWrite(dirRightA, !dir);
+    digitalWrite(dirRightB, dir);
 
     HwPWMx[0]->writePin(enableLeft, maxValue, false);
     HwPWMx[1]->writePin(enableRight, maxValue, false);
@@ -243,11 +279,11 @@ void GoStraight(bool dir) // 1 - forward; 0 - backward
 
 void GoStraight(bool dir, uint8_t valueLeft, uint8_t valueRight)
 {
-    digitalWrite(dirLeftA, dir);
-    digitalWrite(dirLeftB, !dir);
+    digitalWrite(dirLeftA, !dir);
+    digitalWrite(dirLeftB, dir);
 
-    digitalWrite(dirRightA, dir);
-    digitalWrite(dirRightB, !dir);
+    digitalWrite(dirRightA, !dir);
+    digitalWrite(dirRightB, dir);
 
     HwPWMx[0]->writePin(enableLeft, valueLeft, false);
     HwPWMx[1]->writePin(enableRight, valueRight, false);
@@ -305,7 +341,7 @@ void ManualControl(uint8_t val)
 {
     if(val == 0x57 || val == 0x77) // 'W/w' FORWARD
     {
-        GoStraight(true);
+        GoStraight(true); 
         Serial.println("Received W/w");
         // what if 'W'
     }
@@ -353,9 +389,15 @@ void GetControl(byte msg[])
     }
 }
 
+/*****************************************************************************************
+ * 
+ * Reading Encoders
+ * 
+ * **************************************************************************************/
+
 bool digitalizeAnalog(int value)
 {
-    if(value < 90) // kolor bialy
+    if(value < 1000) // kolor bialy
     {
         return false;
     }
@@ -365,9 +407,113 @@ bool digitalizeAnalog(int value)
     }
 }
 
+//void readEnc_Timer_callback(TimerHandle_t xTimerID)
+void readEncoders()
+{
+    //Serial.println(analogRead(encoderLeft));
+    
+    if (digitalizeAnalog(analogRead(encoderLeft)) != encoderLeftLast)
+    {
+        if(leftWheelDirection)
+        {
+            encoderLeftTicks++;
+            encCurrLeftCount++;
+            //Serial.print("l tick + : ");
+            //Serial.println(encoderLeftTicks);
+        }
+        else
+        {
+            encoderLeftTicks--;
+            encCurrLeftCount--;
+            //Serial.print("l tick - : ");
+            //Serial.println(encoderLeftTicks);
+        }
+        if(encoderLeftTicks % 32 == 0)
+        {
+            encoderLeftRevs++;
+        }
+        encoderLeftLast = !encoderLeftLast;
+    }
+
+    if (digitalizeAnalog(analogRead(encoderRight)) != encoderRightLast)
+    {
+        if(rightWheelDirection)
+        {
+            encoderRightTicks++;
+            encCurrRightCount++;
+            //Serial.print("p tick + : ");
+            //Serial.println(encoderRightTicks);
+        }
+        else
+        {
+            encoderRightTicks--;
+            encCurrRightCount--;
+            //Serial.print("p tick - : ");
+            //Serial.println(encoderRightTicks);
+        }
+        if(encoderRightTicks % 32 == 0)
+        {
+            encoderRightRevs++;
+        }
+        encoderRightLast = !encoderRightLast;
+    }
+
+
+}
+
+
+void Regulator()
+{
+    float differ;
+    
+    int currRegLeftValue;
+
+    if (speedLeft < speedRight)
+    {
+        differ = speedRight - speedLeft;
+
+        if (leftWheelControl == maxLeftValue)
+        {
+            rightWheelControl = maxValue;
+        }
+        else
+        {
+            leftWheelControl += 15;
+            rightWheelControl = maxValue;
+        }
+        
+
+    }
+
+    else if (speedRight < speedLeft)
+    {
+        differ = speedLeft - speedRight;
+
+        if(rightWheelControl == maxValue)
+        {
+            leftWheelControl -= 20;
+        }
+        else
+        {
+            rightWheelControl = maxValue;
+            leftWheelControl -= 15;
+        }
+    }
+
+    Serial.print("left : ");
+    Serial.print(leftWheelControl);
+    Serial.print(" __ right : ");
+    Serial.println(rightWheelControl);
+}
 
 void loop()
 {
+
+    if(millis()- t0 > 10)
+    {
+        readEncoders();
+        t0 = millis();
+    }
     // Forward data from HW Serial to BLEUART
     // timer który bedzie wysyłał dane o prękości kół i tak dalej do apki
   
@@ -379,9 +525,9 @@ void loop()
 
         bleuart.write( buf, count );
     }
-*/
+
     // Forward from BLEUART to HW 
-    /*
+    
     while ( bleuart.available() ) // tu nie może być while
     {
         if(bleuart.available()<2)
@@ -399,37 +545,167 @@ void loop()
         }
         
     }
-// odczyt enkoderów //////////////////////////////////////////////////////////
-    bool encLeft = digitalizeAnalog( analogRead(encoderLeft) );
-    int encRight = digitalizeAnalog( analogRead(encoderRight) );
+    */
 
+
+// odczyt enkoderów //////////////////////////////////////////////////////////
+    //delay(20);
+
+    //int anl = analogRead(encoderLeft);
+    //int anp = analogRead(encoderRight);
+
+    //Serial.println(anl);
+    //Serial.println(anp);
+
+    //bool encLeft = digitalizeAnalog( anl );
+    //bool encRight = digitalizeAnalog( anp );
+
+
+    /*
+    Serial.print("left - ");
+    Serial.println(encLeft);
+
+    Serial.print("right - ");
+    Serial.println(encRight);
+    */
+/*
     if (encLeft != encoderLeftLast)
     {
-        encoderLeftTicks++;
+        if(leftWheelDirection)
+        {
+            encoderLeftTicks++;
+            encCurrLeftCount++;
+            Serial.print("l tick + : ");
+            Serial.println(encoderLeftTicks);
+        }
+        else
+        {
+            encoderLeftTicks--;
+            encCurrLeftCount--;
+            Serial.print("l tick - : ");
+            Serial.println(encoderLeftTicks);
+        }
+        //Serial.println("l");
         encoderLeftLast = !encoderLeftLast;
     }
     if (encRight != encoderRightLast)
     {
-        encoderRightTicks++;
-        encoderLeftLast = !encoderRightLast;
+        if(rightWheelDirection)
+        {
+            encoderRightTicks++;
+            encCurrRightCount++;
+            Serial.print("p tick + : ");
+            Serial.println(encoderRightTicks);
+        }
+        else
+        {
+            encoderRightTicks--;
+            encCurrRightCount--;
+            Serial.print("p tick - : ");
+            Serial.println(encoderRightTicks);
+        }
+        //Serial.println("p");
+        encoderRightLast = !encoderRightLast;
     }
+    
+*/
+    
+
+
+
+    unsigned long encMili = millis();
+    int timeSpan = encMili - encTimer;
+
+    if(timeSpan >= 1000)
+    {
+        // 360st/32prążki
+        // 11,25 stopni to prążek
+        
+        float encCurrLeft = (float)abs(encCurrLeftCount);
+        float radLeft = (encCurrLeft * 11.25) * (3.1415 / 180);
+        Serial.print("left speed - ");
+        Serial.println(radLeft);
+        Serial.println(encCurrLeft);
+        speedLeft = radLeft / ((encMili - encTimer) / 1000);
+        encCurrLeftCount = 0;
+
+        
+        float encCurrRight = (float)abs(encCurrRightCount);
+        float radRight = (encCurrRight * 11.25) * (3.1415 / 180);
+        Serial.print("right speed - ");
+        Serial.println(radRight);
+        Serial.println(encCurrRight);
+        speedRight = radRight / ((encMili - encTimer) / 1000);
+        encCurrRightCount = 0;
+        encTimer = millis();
+        ctr++;
+
+        //Regulator();
+
+        if(ctr>= 5)
+        {
+            Serial.print("Left ticks : ");
+            Serial.println(encoderLeftTicks);
+            Serial.print("Right ticks : ");
+            Serial.println(encoderRightTicks);
+            ctr = 0;
+        }
+
+        
+
+    }
+    /*
+    if(Fr)
+    {
+        GoStraight(true, leftWheelControl , rightWheelControl);
+        leftWheelDirection = true;
+        rightWheelDirection = true;
+
+        if(encoderLeftTicks >= 320)
+        {
+            Fr = false;
+            
+        }
+    }
+    else
+    {
+        GoStraight(false, leftWheelControl, rightWheelControl);
+        leftWheelDirection = false;
+        rightWheelDirection = false;
+
+        if(encoderLeftTicks <= 0)
+        {
+            Fr = true;
+        }
+    }
+    */
 
 // liczenie prękości kątowych kół///////////////////////////////////////////
 
-*/
 
-   /* if(F0)
+
+    if(F0)
     {
-        if(millis() - t0 > 200)
+        if(millis() - t3 > 200)
         {
             CalculateNet();
-            t0 = millis();
-
-            
+            t3 = millis();
 
         }
         
-    }/*
+    }
+    else
+    {
+        Serial.println("************BACKWARD**************");
+        if (millis() - t3 < 1500)
+        {
+            GoStraight(false, maxValue,  maxValue);
+        }
+        else
+        {
+            F0 = true;
+        }
+    }
     
 
 // Sieć
@@ -448,7 +724,6 @@ void loop()
 
 
 // wysyłanie danych:
-
 
 
 
@@ -485,8 +760,8 @@ void CalculateNet()
     leftWheelDirection = GetDirection(OutputVal[2]);
     rightWheelDirection = GetDirection(OutputVal[3]);
     
-    uint8_t valueLeft = GetValue(OutputVal[0]);
-    uint8_t valueRight = GetValue(OutputVal[1]);
+    uint8_t valueLeft = GetLeftValue(OutputVal[0]);
+    uint8_t valueRight = GetRightValue(OutputVal[1]);
     
     uint8_t t[2];
     t[0] = valueLeft;
@@ -498,7 +773,10 @@ void CalculateNet()
     //(uint8_t)OutputVal[0];
     //uint8_t valueRight = (uint8_t)OutputVal[1];
     
-    
+    if(!leftWheelDirection && !rightWheelDirection)
+    {
+        F0 = false;
+    }
 
 
     DriveNN(leftWheelDirection, valueLeft, rightWheelDirection, valueRight);
@@ -608,6 +886,8 @@ void setupNeuralNet() {
     hiddenWeight[8][3] =   2.3503695150670;
  }
 
+
+
  void readSensors() {
     InputVal[0] = analogRead(sensorLeft);
     InputVal[1] = analogRead(SensorRight);
@@ -619,32 +899,44 @@ void setupNeuralNet() {
     Serial.println(InputVal[1]);
 }
 
+
 float tansig(float value) {
     float_t wyk = (-2.0) * value;
     return (2.0 / (1.0 + exp(wyk))) - 1.0;
 }
 
 
-uint8_t GetValue(float outputValue)
+uint8_t GetRightValue(float outputValue)
 {
     if(outputValue >= 3.5)
     {
         return maxValue;
     }
-    else if(outputValue < 3.5 && outputValue >= 2.5)
+    else if(outputValue < 3.5 && outputValue >= 2.0)
     {
-        return maxValue - 50;
-    }
-    else if(outputValue < 2.5 && outputValue >= 1.5)
-    {
-        return maxValue - 100;
+        return maxValue - 70;
     }
     else
     {
-        return maxValue - 120;
+        return 0;
     }
 }
 
+uint8_t GetLeftValue(float outputValue)
+{
+    if(outputValue >= 3.5)
+    {
+        return maxLeftValue;
+    }
+    else if(outputValue < 3.5 && outputValue >= 2.0)
+    {
+        return maxLeftValue - 70;
+    }
+    else
+    {
+        return 0;
+    }
+}
 
 
 void feedForward() {
@@ -770,10 +1062,6 @@ void feedForward() {
     Serial.println(OutputVal[3]);
 }
 
-
-
-
-
 void connect_callback(uint16_t conn_handle)
 {
     char central_name[32] = { 0 };
@@ -802,6 +1090,7 @@ void disconnect_callback(uint16_t conn_handle, uint8_t reason)
  */
 void blink_timer_callback(TimerHandle_t xTimerID)
 {
+    
     bleuart.write(omegaLeft, sizeof(omegaLeft));
     omegaLeft[0]++;
     (void) xTimerID;
