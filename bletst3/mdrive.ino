@@ -100,6 +100,18 @@ void ManualControl(uint8_t val)
         Serial.println("Received D/d");
         // what if 'D'
     }
+    else if(val == 0x51 || val == 0x71)
+    {
+        manualControl = false;
+        CancelControl();
+        Serial.println("Received Q/q");
+    }
+    else if(val == 0x5a || 0x7a)
+    {
+        manualControl = true;
+        CancelControl();
+        Serial.println("Received Z/z");
+    }
     else if(val == 0x48 || val == 0x68)
     {
         CancelControl();
@@ -114,18 +126,6 @@ void ManualControl(uint8_t val)
     }
 
 }
-
-void GetControl(byte msg[])
-{
-    uint8_t val;
-    
-    if(msg[1] == 0x0A)
-    {
-        val = msg[0];
-        ManualControl(val);
-    }
-}
-
 
 bool digitalizeAnalog(int value)
 {
@@ -189,8 +189,6 @@ void readEncoders()
         }
         encoderRightLast = !encoderRightLast;
     }
-
-
 }
 
 

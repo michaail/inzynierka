@@ -16,7 +16,6 @@
 #define sensorLeft A0
 #define SensorRight A1
 
-
 /* 
  * Actuators pins declarations:
  */
@@ -33,9 +32,9 @@
 #define dirRightA 12
 #define dirRightB 11
 
-/*
+/******************************
  * Encoders pins declarations
- */
+ * ***************************/
 
 // encoders output pins
 #define encoderLeft A2
@@ -43,6 +42,10 @@
 
 // encoder wheel reesolution
 #define encoderResolution 32
+
+/******************************
+ * Encoders variables
+ * ***************************/
 
 // encoder ticks
 int encoderLeftTicks = 0;
@@ -59,36 +62,35 @@ bool encoderRightLast = 0;
 bool encoderLeftCurr = 0;
 bool encoderRightCurr = 0;
 
+int encCurrLeftCount; 
+int encCurrRightCount;
+
 // ref voltage for ADC
 //float mv_per_lsb = 3000.0f/256.0f; // 8-bit ADC z 3.3V input range
 
-const uint8_t maxValue = bit(8)-1;
-const uint8_t maxLeftValue = 192;
-int ctr = 0;
+/******************************
+ * Control variables and values
+ * ***************************/
 
-uint8_t leftWheelControl = maxValue;
+ // maximal control values
+const uint8_t maxValue = bit(8)-1;
+const uint8_t maxLeftValue = 190;
+
+uint8_t leftWheelControl = maxLeftValue;
 uint8_t rightWheelControl = maxValue;
+
+bool leftWheelDirection = true;
+bool rightWheelDirection = true;
 
 // straight ride flag
 bool straightF = 0;
 
-// flagi etapow
-bool f1 = false;
-bool f2 = false;
+bool manualControl = true; // control mode variable false - automode; true - manualmode
 
-// chwile czasu
-unsigned long t1 = 0;
-unsigned long t2 = 0;
+/******************************
+ * Neural network variables
+ * ***************************/
 
-// BLE Service
-BLEDis  bledis;
-BLEUart bleuart;
-BLEBas  blebas;
-
-unsigned long t0;
-bool F0;
-
-// Siec
 uint32_t InputVal[2];
 float OutputVal[4];
 float sum;
@@ -109,29 +111,77 @@ float outputNeuron[4];
 uint8_t omegaLeft[1];
 uint8_t omegaRight = 0;
 
-bool leftWheelDirection = true;
-bool rightWheelDirection = true;
+/******************************
+ * Timers & flags
+ * ***************************/
+
+// phase flags
+bool f1 = false;
+bool f2 = false;
+
+// timer snaps
+unsigned long t1 = 0;
+unsigned long t2 = 0;
+
+unsigned long t0;
+bool F0;
 
 unsigned long encTimer;
 
 float speedLeft;
 float speedRight;
 
-int encCurrLeftCount; 
-int encCurrRightCount;
-
-float R = 0.01525; // promien kola
-float Pi = 3.1415; // pi
-
-float d = 0.0515; // rozstaw kol
-
-bool Fr = true;
-
 // Software Timer for blinking RED LED
 SoftwareTimer blinkTimer;
 
 SoftwareTimer readEncTimer;
 
+/******************************
+ * Robot
+ * ***************************/
+
+float r = 0.01525; // wheel radius
+float pi = 3.1415; // pi
+
+float d = 0.0515; // wheel raster
+
+float wl = 0.0;
+float wp = 0.0;
+
+float x = 0.0;
+float y = 0.0;
+float phi = 0.0;
+
+float vel = 0.0;
+float omg = 0.0;
+
+float vx = 0.0;
+float vy = 0.0;
+
+float tp = 1.0;
+
+bool Fr = true;
+
+int ctr = 0;
+
+/******************************
+ * Bluetooth services
+ * ***************************/
+
+union {
+    float val;
+    unsigned char b[4];
+} omgLeftToSend;
+
+union {
+    float val;
+    unsigned char b[4];
+} omgRightToSend;
+
+// BLE Service
+BLEDis  bledis;
+BLEUart bleuart;
+BLEBas  blebas;
 
 
 void setup()
@@ -140,15 +190,18 @@ void setup()
     analogReference(AR_INTERNAL_3_0);
 
     omegaLeft[0] = 1;
-    setupPWM();
 
-    delay(1);
-
+    
     pinMode(dirLeftA, OUTPUT);
     pinMode(dirLeftB, OUTPUT);
 
     pinMode(dirRightA, OUTPUT);
     pinMode(dirRightB, OUTPUT);
+
+    setupPWM();
+
+    delay(1);
+
 
     F0 = true;
     t0 = millis() - 50;
@@ -160,8 +213,8 @@ void setup()
     encoderRightCurr = 0;
 
     Serial.begin(115200);
-    Serial.println("BugBoard Manual Control example");
-    Serial.println("---------------------------\n");
+    Serial.println("bug_board_v1.0 OS initialize...");
+    Serial.println("-------------------------------\n");
 
     // to myślę że można wywalić ale pewny nie jestem
     // Initialize blinkTimer for 1000 ms and start it
@@ -177,15 +230,15 @@ void setup()
 
     Bluefruit.begin();
     Bluefruit.setTxPower(4); // maksymalna moc nadajnika
-    Bluefruit.setName("Bluefruit52");
+    Bluefruit.setName("guziec");
     
     //Bluefruit.setName(getMcuUniqueID()); // useful testing with multiple central connections
     Bluefruit.setConnectCallback(connect_callback);
     Bluefruit.setDisconnectCallback(disconnect_callback);
 
     // Configure and Start Device Information Service
-    bledis.setManufacturer("Adafruit Industries");
-    bledis.setModel("Bluefruit Feather52");
+    bledis.setManufacturer("BKNS");
+    bledis.setModel("bug_board_v1.0");
     bledis.begin();
 
     // Configure and Start BLE Uart Service
@@ -202,7 +255,7 @@ void setup()
 
     //GoStraight(true, 192, 255);
 
-    Serial.println("Please use BugApp to control BugBoard via BLE");
+    Serial.println("feel free to use BugApp to control BugBoard via BLE");
     Serial.println("You can send values to the app to test connectivity");
 }
 
@@ -224,110 +277,19 @@ void setupPWM()
 void loop()
 {
 
+    // Encoders reading
     if(millis()- t0 > 10)
     {
         readEncoders();
+
+        receiveData();
+
         t0 = millis();
     }
-    // Forward data from HW Serial to BLEUART
-    // timer który bedzie wysyłał dane o prękości kół i tak dalej do apki
+    
   
-/*
-    while (Serial.available())
-    {
-        // Delay to wait for enough input, since we have a limited transmission buffer
-        delay(2);
 
-        bleuart.write( buf, count );
-    }
-
-    // Forward from BLEUART to HW 
-    
-    while ( bleuart.available() ) // tu nie może być while
-    {
-        if(bleuart.available()<2)
-        {
-            delay(1);
-        }
-        else
-        {
-            uint8_t chs[2];
-            for(int i = 0; i < sizeof(chs); i++)
-            {
-                chs[i] = (uint8_t)bleuart.read();
-            }
-            GetControl(chs);
-        }
-        
-    }
-    */
-
-
-// odczyt enkoderów //////////////////////////////////////////////////////////
-    //delay(20);
-
-    //int anl = analogRead(encoderLeft);
-    //int anp = analogRead(encoderRight);
-
-    //Serial.println(anl);
-    //Serial.println(anp);
-
-    //bool encLeft = digitalizeAnalog( anl );
-    //bool encRight = digitalizeAnalog( anp );
-
-
-    /*
-    Serial.print("left - ");
-    Serial.println(encLeft);
-
-    Serial.print("right - ");
-    Serial.println(encRight);
-    */
-/*
-    if (encLeft != encoderLeftLast)
-    {
-        if(leftWheelDirection)
-        {
-            encoderLeftTicks++;
-            encCurrLeftCount++;
-            Serial.print("l tick + : ");
-            Serial.println(encoderLeftTicks);
-        }
-        else
-        {
-            encoderLeftTicks--;
-            encCurrLeftCount--;
-            Serial.print("l tick - : ");
-            Serial.println(encoderLeftTicks);
-        }
-        //Serial.println("l");
-        encoderLeftLast = !encoderLeftLast;
-    }
-    if (encRight != encoderRightLast)
-    {
-        if(rightWheelDirection)
-        {
-            encoderRightTicks++;
-            encCurrRightCount++;
-            Serial.print("p tick + : ");
-            Serial.println(encoderRightTicks);
-        }
-        else
-        {
-            encoderRightTicks--;
-            encCurrRightCount--;
-            Serial.print("p tick - : ");
-            Serial.println(encoderRightTicks);
-        }
-        //Serial.println("p");
-        encoderRightLast = !encoderRightLast;
-    }
-    
-*/
-    
-
-
-
+    // wheels speeds computation
     unsigned long encMili = millis();
     int timeSpan = encMili - encTimer;
 
@@ -335,26 +297,32 @@ void loop()
     {
         // 360st/32prążki
         // 11,25 stopni to prążek
-        
-        float encCurrLeft = (float)abs(encCurrLeftCount);
+        float ttt = (float)timeSpan / 1000.0;
+
+        //float encCurrLeft = (float)abs(encCurrLeftCount);
+        float encCurrLeft = (float)encCurrLeftCount;
         float radLeft = (encCurrLeft * 11.25) * (3.1415 / 180);
+        speedLeft = radLeft / ttt;
         Serial.print("left speed - ");
-        Serial.println(radLeft);
+        Serial.println(speedLeft);
         Serial.println(encCurrLeft);
-        speedLeft = radLeft / ((encMili - encTimer) / 1000);
+        //speedLeft = radLeft / ((timeSpan) / 1000);
         encCurrLeftCount = 0;
 
         
-        float encCurrRight = (float)abs(encCurrRightCount);
+        //float encCurrRight = (float)abs(encCurrRightCount);
+        float encCurrRight = (float)encCurrRightCount;
         float radRight = (encCurrRight * 11.25) * (3.1415 / 180);
+        speedRight = radRight / ttt;
         Serial.print("right speed - ");
-        Serial.println(radRight);
+        Serial.println(speedRight);
         Serial.println(encCurrRight);
-        speedRight = radRight / ((encMili - encTimer) / 1000);
+        //speedRight = radRight / ((timeSpan) / 1000);
         encCurrRightCount = 0;
         encTimer = millis();
         ctr++;
 
+        // wheeel contro value Regulator
         //Regulator();
 
         if(ctr>= 5)
@@ -366,9 +334,79 @@ void loop()
             ctr = 0;
         }
 
-        
+        wl = speedLeft;
+        wp = speedRight;
+
+        omgLeftToSend.val = speedLeft;
+        omgRightToSend.val = speedRight;
+
+        sendData();
+
+        Velocity();
+        Omega();
+        Vxn();
+        Vyn();
+        Xn();
+        Yn();
+        Phin();
+
+        Serial.print("X : ");
+        Serial.print(x);
+        Serial.print(" __ Y : ");
+        Serial.println(y);
+        Serial.print("phi : ");
+        Serial.println(phi);
+
 
     }
+
+    
+    // Neural network control //
+    if(!manualControl)
+    {
+        if (bleuart.available() )
+        {
+            CancelControl();
+            receiveData();
+            
+        }
+
+        //if()
+        if(F0)
+        {
+            if(millis() - t3 > 200)
+            {
+                CalculateNet();
+                t3 = millis();
+
+            }
+        
+        }
+        else
+        {
+            //Serial.println("************BACKWARD**************");
+            if (millis() - t3 < 1500)
+            {
+                GoStraight(false, maxLeftValue,  maxValue);
+            }
+            else
+            {
+                F0 = true;
+            }
+        }
+    }
+    else
+    {
+
+        receiveData();
+
+        // here manual control driver
+    }
+    
+    /********************************************************************
+     * TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST
+     * *****************************************************************/
+
     /*
     if(Fr)
     {
@@ -376,7 +414,7 @@ void loop()
         leftWheelDirection = true;
         rightWheelDirection = true;
 
-        if(encoderLeftTicks >= 320)
+        if(x >= 1.0)
         {
             Fr = false;
             
@@ -384,82 +422,61 @@ void loop()
     }
     else
     {
-        GoStraight(false, leftWheelControl, rightWheelControl);
+        GoStraight(false, leftWheelControl + 20, rightWheelControl);
         leftWheelDirection = false;
         rightWheelDirection = false;
 
-        if(encoderLeftTicks <= 0)
+        if(x <= 0.0)
         {
             Fr = true;
         }
     }
-    */
-
-// liczenie prękości kątowych kół///////////////////////////////////////////
-
-
-
-    if(F0)
-    {
-        if(millis() - t3 > 200)
-        {
-            CalculateNet();
-            t3 = millis();
-
-        }
-        
-    }
-    else
-    {
-        Serial.println("************BACKWARD**************");
-        if (millis() - t3 < 1500)
-        {
-            GoStraight(false, maxValue,  maxValue);
-        }
-        else
-        {
-            F0 = true;
-        }
-    }
     
+*/
 
-// Sieć
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// wysyłanie danych:
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// tutaj ważny będzie czas ten z odbioru
 
     // Request CPU to enter low-power mode until an event/interrupt occurs
     waitForEvent();
+}
+
+
+void Velocity()
+{
+    //vel = (abs(wp + wl) * r)  / d;
+    vel = ((wp + wl) * r)  / d;
+}
+
+void Omega()
+{   
+    //omg = (abs(wp - wl) * r) / d;   
+    omg = ((wp - wl) * r) / d;   
+}
+
+void Vxn()
+{
+    //vx = ((abs(wp + wl) * r) / 2) * cos(phi);
+    vx = (((wp + wl) * r) / 2) * cos(phi);
+}
+
+void Vyn()
+{
+    //vy = ((abs(wp + wl) * r) / 2) * sin(phi);
+    vy = (((wp + wl) * r) / 2) * sin(phi);
+}
+
+void Xn()
+{
+    x = x + vx * tp;
+}
+
+void Yn()
+{
+    y = y + vy * tp;
+}
+
+void Phin()
+{
+    phi = phi + omg * tp;
 }
 
 
