@@ -1,3 +1,15 @@
+/*********************************************************************
+ * Based on BLUEUart for Feather nRF52 by Adafruit 
+ * 
+ * Motors driver file
+ * 
+ * by:
+ * Dawid Borowczak
+ * Michał Kłos
+ * Adam Neubauer
+ * Wiktor Siwek
+ * 
+*********************************************************************/
 
 void GoStraight(bool dir) // 1 - forward; 0 - backward
 {
@@ -10,6 +22,9 @@ void GoStraight(bool dir) // 1 - forward; 0 - backward
     HwPWMx[0]->writePin(enableLeft, maxValue, false);
     HwPWMx[1]->writePin(enableRight, maxValue, false);
 
+    leftWheelDirection = dir;
+    rightWheelDirection = dir;
+
     // tu jeszcze ten regulator jak będzie chyba że na pałę
     // tutaj obsługa tego żeby jechał prosto
 }
@@ -21,6 +36,9 @@ void GoStraight(bool dir, uint8_t valueLeft, uint8_t valueRight)
 
     digitalWrite(dirRightA, !dir);
     digitalWrite(dirRightB, dir);
+
+    leftWheelDirection = dir;
+    rightWheelDirection = dir;
 
     HwPWMx[0]->writePin(enableLeft, valueLeft, false);
     HwPWMx[1]->writePin(enableRight, valueRight, false);
@@ -37,6 +55,10 @@ void Turn(bool dir) // 1 - prawo; 0 - lewo
     digitalWrite(dirRightA, !dir);
     digitalWrite(dirRightB, dir);
 
+    leftWheelDirection = dir;
+    rightWheelDirection = !dir;
+
+
     HwPWMx[0]->writePin(enableLeft, maxValue, false);
     HwPWMx[1]->writePin(enableRight, maxValue, false);
 
@@ -49,6 +71,9 @@ void Turn(bool dir, uint8_t valueLeft, uint8_t valueRight)
 
     digitalWrite(dirRightA, !dir);
     digitalWrite(dirRightB, dir);
+
+    leftWheelDirection = dir;
+    rightWheelDirection = !dir;
 
     HwPWMx[0]->writePin(enableLeft, valueLeft, false);
     HwPWMx[1]->writePin(enableRight, valueRight, false);

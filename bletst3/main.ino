@@ -1,10 +1,13 @@
-
 /*********************************************************************
  * Based on BLUEUart for Feather nRF52 by Adafruit 
  * 
- * Sketch is designed to receive data as Peripheral
- * from BugApp for Android
+ * Main file
  * 
+ * by:
+ * Dawid Borowczak
+ * Michał Kłos
+ * Adam Neubauer
+ * Wiktor Siwek
  * 
 *********************************************************************/
 #define ARM_MATH_CM4
@@ -178,6 +181,9 @@ union {
     unsigned char b[4];
 } omgRightToSend;
 
+char speLeft[6];
+char speRight[6];
+
 // BLE Service
 BLEDis  bledis;
 BLEUart bleuart;
@@ -282,7 +288,7 @@ void loop()
     {
         readEncoders();
 
-        receiveData();
+        //receiveData();
 
         t0 = millis();
     }
@@ -339,6 +345,13 @@ void loop()
 
         omgLeftToSend.val = speedLeft;
         omgRightToSend.val = speedRight;
+
+        sprintf(speLeft, "%f", abs(speedLeft));
+        sprintf(speRight, "%f", abs(speedRight));
+        
+
+
+        // zrzutować prędkości przy jeździe na wprost
 
         sendData();
 
@@ -483,8 +496,8 @@ void Phin()
 void blink_timer_callback(TimerHandle_t xTimerID)
 {
     
-    bleuart.write(omegaLeft, sizeof(omegaLeft));
-    omegaLeft[0]++;
+//bleuart.write(omegaLeft, sizeof(omegaLeft));
+    //omegaLeft[0]++;
     (void) xTimerID;
     digitalToggle(LED_RED);
 }

@@ -1,3 +1,16 @@
+/*********************************************************************
+ * Based on BLUEUart for Feather nRF52 by Adafruit 
+ * 
+ * Neural Network file
+ * 
+ * by:
+ * Dawid Borowczak
+ * Michał Kłos
+ * Adam Neubauer
+ * Wiktor Siwek
+ * 
+*********************************************************************/
+
 void CalculateNet()
 {
     readSensors();
@@ -12,7 +25,7 @@ void CalculateNet()
     t[0] = valueLeft;
     t[1] = valueRight;
 
-    bleuart.write(t, sizeof(t));
+    //bleuart.write(t, sizeof(t));
 
 
     //(uint8_t)OutputVal[0];

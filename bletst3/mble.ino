@@ -1,3 +1,16 @@
+/*********************************************************************
+ * Based on BLUEUart for Feather nRF52 by Adafruit 
+ * 
+ * Bluetooth conectivity handler file
+ * 
+ * by:
+ * Dawid Borowczak
+ * Michał Kłos
+ * Adam Neubauer
+ * Wiktor Siwek
+ * 
+*********************************************************************/
+
 void startAdv(void)
 {
     // Advertising packet
@@ -58,8 +71,8 @@ void GetControl(byte msg[])
 
 void receiveData()
 {
-    while ( bleuart.available() ) // tu nie może być while
-    {
+    //while ( bleuart.available() ) // tu nie może być while
+    //{
         if(bleuart.available()<2)
         {
             delay(1);
@@ -74,7 +87,7 @@ void receiveData()
             GetControl(chs);
         }
         
-    }
+    //}
     
 }
 
@@ -82,19 +95,50 @@ void sendData()
 {
     unsigned char buf[20];
     
+    /*
     buf[0] = omgLeftToSend.b[0];
     buf[1] = omgLeftToSend.b[1];
     buf[2] = omgLeftToSend.b[2];
     buf[3] = omgLeftToSend.b[3];
-
+    Serial.println(buf[0], HEX);
+    Serial.println(buf[1], HEX);
+    Serial.println(buf[2], HEX);
+    Serial.println(buf[3], HEX);
     buf[4] = leftWheelDirection;
-    
+    Serial.println(buf[4], HEX);
     buf[5] = omgRightToSend.b[0];
     buf[6] = omgRightToSend.b[1];
     buf[7] = omgRightToSend.b[2];
     buf[8] = omgRightToSend.b[3];
 
     buf[9] = rightWheelDirection;
+*/
+
+    Serial.println(speLeft);
+    Serial.println(speRight);
+
+    buf[0] = speLeft[0];
+    buf[1] = speLeft[1];
+    buf[2] = speLeft[2];
+    buf[3] = speLeft[3];
+    buf[4] = speLeft[4];
+    buf[5] = speLeft[5];
+    
+    
+
+    buf[6] = 0x20;
+
+    buf[7] = speRight[0];
+    buf[8] = speRight[1];
+    buf[9] = speRight[2];
+    buf[10] = speRight[3];
+    buf[11] = speRight[4];
+    buf[12] = speRight[5];
+    
+    buf[13] = 0x20;
+
+    buf[14] = char(leftWheelDirection);
+    buf[15] = char(rightWheelDirection);
 
     bleuart.write(buf, sizeof(buf));
 
