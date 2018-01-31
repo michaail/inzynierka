@@ -1,6 +1,8 @@
 /*********************************************************************
  * Based on BLUEUart for Feather nRF52 by Adafruit 
  * 
+ * bug_board_v1.0
+ * 
  * Bluetooth conectivity handler file
  * 
  * by:
@@ -138,6 +140,23 @@ void sendData()
     buf[13] = 0x20;
 
     buf[14] = char(leftWheelDirection);
+    if (leftWheelDirection)
+    {
+        buf[14] = 0x31;
+    }
+    else
+    {
+        buf[15] = 0x30;
+    }
+
+    if (rightWheelControl)
+    {
+        buf[15] = 0x31;
+    }
+    else
+    {
+        buf[15] = 0x30;
+    }
     buf[15] = char(rightWheelDirection);
 
     bleuart.write(buf, sizeof(buf));

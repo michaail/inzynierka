@@ -1,6 +1,8 @@
 /*********************************************************************
  * Based on BLUEUart for Feather nRF52 by Adafruit 
  * 
+ * bug_board_v1.0
+ * 
  * Main file
  * 
  * by:
@@ -222,7 +224,7 @@ void setup()
     Serial.println("bug_board_v1.0 OS initialize...");
     Serial.println("-------------------------------\n");
 
-    // to myślę że można wywalić ale pewny nie jestem
+
     // Initialize blinkTimer for 1000 ms and start it
     blinkTimer.begin(1000, blink_timer_callback);
     blinkTimer.start();

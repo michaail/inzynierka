@@ -1,6 +1,8 @@
 /*********************************************************************
  * Based on BLUEUart for Feather nRF52 by Adafruit 
  * 
+ * bug_board_v1.0
+ * 
  * Neural Network file
  * 
  * by:

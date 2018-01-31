@@ -1,5 +1,7 @@
 /*********************************************************************
  * Based on BLUEUart for Feather nRF52 by Adafruit 
+ *
+ * bug_board_v1.0
  * 
  * Motors driver file
  * 
@@ -25,8 +27,6 @@ void GoStraight(bool dir) // 1 - forward; 0 - backward
     leftWheelDirection = dir;
     rightWheelDirection = dir;
 
-    // tu jeszcze ten regulator jak będzie chyba że na pałę
-    // tutaj obsługa tego żeby jechał prosto
 }
 
 void GoStraight(bool dir, uint8_t valueLeft, uint8_t valueRight)
@@ -43,8 +43,6 @@ void GoStraight(bool dir, uint8_t valueLeft, uint8_t valueRight)
     HwPWMx[0]->writePin(enableLeft, valueLeft, false);
     HwPWMx[1]->writePin(enableRight, valueRight, false);
 
-    // tu jeszcze ten regulator jak będzie chyba że na pałę
-    // tutaj obsługa tego żeby jechał prosto
 }
 
 void Turn(bool dir) // 1 - prawo; 0 - lewo
